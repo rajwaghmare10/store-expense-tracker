@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html ng-app="expenseTrackerApp">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Store Expense Tracker</title>
+    
+    <!-- AngularJS and Dependencies -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/angular.js/1.8.3/angular.min.js"></script>
+    
+    <!-- Chart.js for visualizations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body ng-controller="MainController">
+    <!-- TOP NAVIGATION -->
+    <nav class="top-nav">
+        <h1>
+            <i class="fas fa-store"></i>
+            Store Expense Tracker
+        </h1>
+        <div class="user-info">
+            <span id="current-date"></span>
+            <i class="fas fa-user-circle" style="font-size: 1.5rem;"></i>
+        </div>
+    </nav>
+
+    <!-- SIDEBAR MENU -->
+    <aside class="sidebar">
+        <ul class="sidebar-menu">
+            <li><a ng-click="showPage('dashboard')" ng-class="{active: currentPage === 'dashboard'}">
+                <i class="fas fa-chart-line"></i> Dashboard
+            </a></li>
+            <li><a ng-click="showPage('transactions')" ng-class="{active: currentPage === 'transactions'}">
+                <i class="fas fa-exchange-alt"></i> Transactions
+            </a></li>
+            <li><a ng-click="showPage('reports')" ng-class="{active: currentPage === 'reports'}">
+                <i class="fas fa-chart-bar"></i> Reports
+            </a></li>
+            <li><a ng-click="showPage('categories')" ng-class="{active: currentPage === 'categories'}">
+                <i class="fas fa-tags"></i> Categories
+            </a></li>
+        </ul>
+    </aside>
+
+    <!-- MAIN CONTENT AREA -->
+    <main class="main-content">
+        <!-- DASHBOARD PAGE -->
+        <div ng-show="currentPage === 'dashboard'">
+            <h2 class="card-title mb-2">Dashboard Overview</h2>
+            
+            <div class="stats-container">
+                <div class="stat-card income">
+                    <div class="stat-icon"><i class="fas fa-arrow-up"></i></div>
+                    <div class="stat-label">Total Income</div>
+                    <div class="stat-value">₹{{stats.totalIncome | number:2}}</div>
+                </div>
+                <div class="stat-card expense">
+                    <div class="stat-icon"><i class="fas fa-arrow-down"></i></div>
+                    <div class="stat-label">Total Expenses</div>
+                    <div class="stat-value">₹{{stats.totalExpense | number:2}}</div>
+                </div>
+                <div class="stat-card profit">
+                    <div class="stat-icon"><i class="fas fa-chart-line"></i></div>
+                    <div class="stat-label">Net Profit/Loss</div>
+                    <div class="stat-value" ng-class="stats.netProfit >= 0 ? 'text-success' : 'text-danger'">
+                        ₹{{stats.netProfit | number:2}}
+                    </div>
+                </div>
+            </div>
+
+            <div class="charts-grid">
+                <div class="card">
+                    <h3 class="card-title">Income vs Expenses</h3>
+                    <div class="chart-container">
+                        <canvas id="pieChart"></canvas>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3 class="card-title">Category-wise Breakdown</h3>
+                    <div class="chart-container">
+                        <canvas id="barChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Recent Transactions</h3>
+                    <button class="btn btn-primary btn-sm" ng-click="showPage('transactions')">View All</button>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Type</th>
+                                <th>Category</th>
+                                <th>Description</th>
+                                <th>Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr ng-repeat="transaction in recentTransactions track by transaction.id">
+                                <td>{{transaction.date}}</td>
+                                <td>
+                                    <span class="badge" ng-class="transaction.type === 'income' ? 'badge-income' : 'badge-expense'">
+                                        {{transaction.type}}
+                                    </span>
+                                </td>
+                                <td>{{transaction.category}}</td>
+                                <td>{{transaction.description}}</td>
+                                <td ng-class="transaction.type === 'income' ? 'text-success' : 'text-danger'">
+                                    ₹{{transaction.amount | number:2}}
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- TRANSACTIONS PAGE -->
+        <div ng-show="currentPage === 'transactions'">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Transactions Management</h2>
+                    <div>
+                        <button class="btn btn-success" ng-click="openAddModal()">
+                            <i class="fas fa-plus"></i> Add Transaction
+                        </button>
+                        <button class="btn btn-warning" ng-click="exportToCSV()">
+                            <i class="fas fa-download"></i> Export CSV
+                        </button>
+                    </div>
+                </div>
+
+                <div class="filters-container">
+                    <div class="filter-group">
+                        <label>Search</label>
+                        <input type="text" class="form-control" ng-model="filters.search" 
+                               ng-change="applyFilters()" placeholder="Search...">
+                    </div>
+                    <div class="filter-group">
+                        <label>Type</label>
+                        <select class="form-control" ng-model="filters.type" ng-change="applyFilters()">
+                            <option value="">All Types</option>
+                            <option value="income">Income</option>
+                            <option value="expense">Expense</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Category</label>
+                        <select class="form-control" ng-model="filters.category" ng-change="applyFilters()">
+                            <option value="">All Categories</option>
+                            <option ng-repeat="cat in categories" value="{{cat.name}}">{{cat.name}}</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Start Date</label>
+                        <input type="date" class="form-control" ng-model="filters.startDate" ng-change="applyFilters()">
+                    </div>
+                    <div class="filter-group">
+                        <label>End Date</label>
+                        <input type="date" class="form-control" ng-model="filters.endDate" ng-change="applyFilters()">
+                    </div>
+                    <div class="filter-group">
+                        <label>&nbsp;</label>
+                        <button class="btn btn-primary" ng-click="resetFilters()">
+                            <i class="fas fa-redo"></i> Reset
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Type</th>
+                                <th>Category</th>
+                                <th>Description</th>
+                                <th>Amount</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr ng-repeat="transaction in filteredTransactions | orderBy:'-date'">
+                                <td>{{transaction.date}}</td>
+                                <td>
+                                    <span class="badge" ng-class="transaction.type === 'income' ? 'badge-income' : 'badge-expense'">
+                                        {{transaction.type}}
+                                    </span>
+                                </td>
+                                <td>{{transaction.category}}</td>
+                                <td>{{transaction.description}}</td>
+                                <td ng-class="transaction.type === 'income' ? 'text-success' : 'text-danger'">
+                                    <strong>₹{{transaction.amount | number:2}}</strong>
+                                </td>
+                                <td>
+                                    <button class="btn btn-primary btn-sm" ng-click="openEditModal(transaction)">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button class="btn btn-danger btn-sm" ng-click="deleteTransaction(transaction.id)">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </td>
+                            </tr>
+                            <tr ng-if="filteredTransactions.length === 0">
+                                <td colspan="6" class="text-center">No transactions found</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Transaction Modal -->
+            <div class="modal-overlay" ng-show="showModal" ng-click="closeModal()">
+                <div class="modal" ng-click="$event.stopPropagation()">
+                    <div class="modal-header">
+                        <h3>{{isEdit ? 'Edit' : 'Add'}} Transaction</h3>
+                        <button class="close-btn" ng-click="closeModal()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <form ng-submit="saveTransaction()">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Date *</label>
+                                <input type="date" class="form-control" ng-model="newTransaction.date" required>
+                            </div>
+                            <div class="form-group">
+                                <label>Type *</label>
+                                <select class="form-control" ng-model="newTransaction.type" required>
+                                    <option value="income">Income</option>
+                                    <option value="expense">Expense</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Category *</label>
+                            <select class="form-control" ng-model="newTransaction.category" required>
+                                <option value="">Select Category</option>
+                                <option ng-repeat="cat in categories | filter:{type: newTransaction.type}" value="{{cat.name}}">
+                                    {{cat.name}}
+                                </option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Description *</label>
+                            <input type="text" class="form-control" ng-model="newTransaction.description" 
+                                   placeholder="Enter description" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Amount (₹) *</label>
+                            <input type="number" class="form-control" ng-model="newTransaction.amount" 
+                                   step="0.01" min="0" placeholder="0.00" required>
+                        </div>
+                        <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                            <button type="button" class="btn btn-secondary" ng-click="closeModal()">Cancel</button>
+                            <button type="submit" class="btn btn-success">Save</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- REPORTS PAGE -->
+        <div ng-show="currentPage === 'reports'">
+            <h2 class="card-title mb-2">Financial Reports</h2>
+
+            <div class="card">
+                <h3 class="card-title">Weekly Analysis</h3>
+                <div class="chart-container" style="height: 400px;">
+                    <canvas id="weeklyChart"></canvas>
+                </div>
+                <div class="table-responsive mt-2">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Week</th>
+                                <th>Income</th>
+                                <th>Expenses</th>
+                                <th>Profit/Loss</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr ng-repeat="(week, data) in weeklyData">
+                                <td><strong>{{week}}</strong></td>
+                                <td class="text-success">₹{{data.income | number:2}}</td>
+                                <td class="text-danger">₹{{data.expense | number:2}}</td>
+                                <td ng-class="(data.income - data.expense) >= 0 ? 'text-success' : 'text-danger'">
+                                    <strong>₹{{(data.income - data.expense) | number:2}}</strong>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3 class="card-title">Monthly Analysis</h3>
+                <div class="chart-container" style="height: 400px;">
+                    <canvas id="monthlyChart"></canvas>
+                </div>
+                <div class="table-responsive mt-2">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Month</th>
+                                <th>Income</th>
+                                <th>Expenses</th>
+                                <th>Profit/Loss</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr ng-repeat="(month, data) in monthlyData">
+                                <td><strong>{{month}}</strong></td>
+                                <td class="text-success">₹{{data.income | number:2}}</td>
+                                <td class="text-danger">₹{{data.expense | number:2}}</td>
+                                <td ng-class="(data.income - data.expense) >= 0 ? 'text-success' : 'text-danger'">
+                                    <strong>₹{{(data.income - data.expense) | number:2}}</strong>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- CATEGORIES PAGE -->
+        <div ng-show="currentPage === 'categories'">
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">Categories Management</h2>
+                    <button class="btn btn-success" ng-click="openCategoryModal()">
+                        <i class="fas fa-plus"></i> Add Category
+                    </button>
+                </div>
+
+                <div style="margin-bottom: 2rem;">
+                    <h3 style="color: var(--success-color); margin-bottom: 1rem;">
+                        <i class="fas fa-arrow-up"></i> Income Categories
+                    </h3>
+                    <div class="category-list">
+                        <div class="category-item" ng-repeat="category in getCategoriesByType('income')">
+                            <div class="category-icon" style="color: var(--success-color);">
+                                <i class="fas {{category.icon}}"></i>
+                            </div>
+                            <div style="flex: 1;">
+                                <strong>{{category.name}}</strong>
+                            </div>
+                            <div>
+                                <button class="btn btn-primary btn-sm" ng-click="openCategoryEditModal(category)">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-danger btn-sm" ng-click="deleteCategory(category.id)">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 style="color: var(--danger-color); margin-bottom: 1rem;">
+                        <i class="fas fa-arrow-down"></i> Expense Categories
+                    </h3>
+                    <div class="category-list">
+                        <div class="category-item" ng-repeat="category in getCategoriesByType('expense')">
+                            <div class="category-icon" style="color: var(--danger-color);">
+                                <i class="fas {{category.icon}}"></i>
+                            </div>
+                            <div style="flex: 1;">
+                                <strong>{{category.name}}</strong>
+                            </div>
+                            <div>
+                                <button class="btn btn-primary btn-sm" ng-click="openCategoryEditModal(category)">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button class="btn btn-danger btn-sm" ng-click="deleteCategory(category.id)">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Category Modal -->
+            <div class="modal-overlay" ng-show="showCategoryModal" ng-click="closeCategoryModal()">
+                <div class="modal" ng-click="$event.stopPropagation()">
+                    <div class="modal-header">
+                        <h3>{{isCategoryEdit ? 'Edit' : 'Add'}} Category</h3>
+                        <button class="close-btn" ng-click="closeCategoryModal()">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <form ng-submit="saveCategory()">
+                        <div class="form-group">
+                            <label>Category Name *</label>
+                            <input type="text" class="form-control" ng-model="newCategory.name" 
+                                   placeholder="Enter category name" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Type *</label>
+                            <select class="form-control" ng-model="newCategory.type" required>
+                                <option value="income">Income</option>
+                                <option value="expense">Expense</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Icon *</label>
+                            <select class="form-control" ng-model="newCategory.icon" required>
+                                <option ng-repeat="icon in availableIcons" value="{{icon}}">{{icon}}</option>
+                            </select>
+                            <div style="margin-top: 1rem; text-align: center;">
+                                <div style="font-size: 3rem; color: var(--secondary-color);">
+                                    <i class="fas {{newCategory.icon}}"></i>
+                                </div>
+                                <small>Preview</small>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                            <button type="button" class="btn btn-secondary" ng-click="closeCategoryModal()">Cancel</button>
+                            <button type="submit" class="btn btn-success">Save</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Custom JavaScript -->
+    <script src="app.js"></script>
+</body>
+</html>
